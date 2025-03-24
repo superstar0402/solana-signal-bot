@@ -23,13 +23,14 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 # Dictionary to store active chats
 active_chats = {}
 
+
 def get_sol_price():
     """Get the current SOL price from CoinGecko API"""
     try:
         response = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
             params={
-                "ids": "solana", "vs_currencies": "usd", "include_market_cap": "true", "include_24hr_vol": "true", "include_24hr_change": "true", "include_last_updated_at": "true", "precision": "2"
+                "ids": "solana", "vs_currencies": "usd"
                 },
             headers={"accept": "application/json"}
         )
@@ -44,6 +45,9 @@ def get_sol_price():
 def start_command(message):
     """Handle the /start command"""
     chat_id = message.chat.id
+    
+    print("aaaaaaa")
+    
     bot.send_message(
         chat_id,
         "🚀 Welcome to the SOL Price Signal Bot! 🚀\n\n"
@@ -53,11 +57,14 @@ def start_command(message):
         "/stop - Stop receiving updates\n"
         "/price - Get current SOL price"
     )
-    
+    print("ccccccc")
     # Add chat to active chats if not already there
-    if chat_id not in active_chats:
+    
+    # if chat_id not in active_chats:
+    if chat_id not in active_chats or active_chats[chat_id] == False:
+        print("ddddddd")
         active_chats[chat_id] = True
-        print("aaaaaaa")
+      
         logger.info(f"Started price updates for chat {chat_id}")
         # Start price updates in a separate thread
         thread = threading.Thread(target=send_price_updates, args=(chat_id,))
@@ -76,7 +83,6 @@ def stop_command(message):
         )
         print("bbbbbb")
         logger.info(f"Stopped price updates for chat {chat_id}")
-        
     else:
         bot.send_message(
             chat_id,
@@ -142,8 +148,5 @@ def main():
     logger.info("Starting SOL Price Signal Bot")
     bot.infinity_polling()
 
-
 if __name__ == '__main__':
     main()
-
-
