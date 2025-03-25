@@ -23,20 +23,24 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 # Dictionary to store active chats
 active_chats = {}
 
-
-def get_sol_price():
+# def get_sol_price():
+def get_sol_data():
     """Get the current SOL price from CoinGecko API"""
     try:
         response = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
             params={
-                "ids": "solana", "vs_currencies": "usd"
+                "ids": "solana", "vs_currencies": "usd",  "include_market_cap": "true"
                 },
             headers={"accept": "application/json"}
         )
         response.raise_for_status()
         data = response.json()
-        return data["solana"]["usd"]
+        # return data["solana"]["usd"]
+        return {
+            "price": data["solana"]["usd"],
+            "market_cap": data["solana"]["usd_market_cap"]
+        }
     except Exception as e:
         logger.error(f"Error fetching SOL price: {e}")
         return None
@@ -75,7 +79,7 @@ def start_command(message):
 def stop_command(message):
     """Handle the /stop command"""
     chat_id = message.chat.id
-    if chat_id in active_chats:
+    if chat_id in active_chats and active_chats[chat_id]:
         active_chats[chat_id] = False
         bot.send_message(
             chat_id,
@@ -93,12 +97,14 @@ def stop_command(message):
 def price_command(message):
     """Handle the /price command"""
     chat_id = message.chat.id
-    sol_price = get_sol_price()
+    # sol_price = get_sol_price()
+    sol_data = get_sol_data()
     
-    if sol_price:
+    if sol_data:
         bot.send_message(
             chat_id,
-            f"💰 Current SOL Price: ${sol_price:.2f} USD"
+            f"💰 Current SOL Price: ${sol_data['price']:.2f} USD\n"
+            f"📊 Market Cap: ${sol_data['market_cap']:.2f} USD"
         )
     else:
         bot.send_message(
@@ -108,34 +114,55 @@ def price_command(message):
 
 def send_price_updates(chat_id):
     """Send price updates every 5 minutes."""
-    prev_price = None
+    prev_data = None
     
     while active_chats.get(chat_id, False):
-        sol_price = get_sol_price()
+        sol_data = get_sol_data()
         
-        if sol_price:
+        if sol_data:
             # Format the message with price change indicator if we have a previous price
-            if prev_price:
-                change = sol_price - prev_price
-                change_percent = (change / prev_price) * 100
+            if prev_data:
+                price_change = sol_data['price'] - prev_data['price']
+                price_change_percent = (price_change / prev_data['price']) * 100
                 
-                if change > 0:
-                    indicator = "🟢 ↗️"
-                    change_text = f"+${change:.2f} (+{change_percent:.2f}%)"
-                elif change < 0:
-                    indicator = "🔴 ↘️"
-                    change_text = f"${change:.2f} ({change_percent:.2f}%)"
+                market_cap_change = sol_data['market_cap'] - prev_data['market_cap']
+                market_cap_change_percent = (market_cap_change / prev_data['market_cap']) * 100
+                
+                if price_change > 0:
+                    price_indicator = "🟢 ↗️"
+                    price_change_text = f"+${price_change:.2f} (+{price_change_percent:.2f}%)"
+                elif price_change < 0:
+                    price_indicator = "🔴 ↘️"
+                    price_change_text = f"${price_change:.2f} ({price_change_percent:.2f}%)"
                 else:
-                    indicator = "⚪ →"
-                    change_text = "No change"
+                    price_indicator = "⚪ →"
+                    price_change_text = "No change"
                 
-                message = f"{indicator} SOL Price: ${sol_price:.2f} USD\n{change_text} since last update"
+                if market_cap_change > 0:
+                    market_cap_indicator = "🟢 ↗️"
+                    market_cap_change_text = f"+${market_cap_change:,.2f} (+{market_cap_change_percent:.2f}%)"
+                elif market_cap_change < 0:
+                    market_cap_indicator = "🔴 ↘️"
+                    market_cap_change_text = f"${market_cap_change:,.2f} ({market_cap_change_percent:.2f}%)"
+                else:
+                    market_cap_indicator = "⚪ →"
+                    market_cap_change_text = "No change"
+               
+                message = (
+                    f"{price_indicator} SOL Price: ${sol_data['price']:.2f} USD\n"
+                    f"{price_change_text} since last update\n\n"
+                    f"{market_cap_indicator} Market Cap: ${sol_data['market_cap']:,.2f} USD\n"
+                    f"{market_cap_change_text} since last update"
+                )
             else:
-                message = f"💰 SOL Price: ${sol_price:.2f} USD"
+                message = (
+                    f"💰 SOL Price: ${sol_data['price']:.2f} USD\n"
+                    f"📊 Market Cap: ${sol_data['market_cap']:,.2f} USD"
+                )
             
             try:
                 bot.send_message(chat_id, message)
-                prev_price = sol_price
+                prev_data = sol_data
             except Exception as e:
                 logger.error(f"Error sending message to {chat_id}: {e}")
                 active_chats[chat_id] = False
